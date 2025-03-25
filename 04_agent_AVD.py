@@ -9,6 +9,7 @@ from agents import Agent, WebSearchTool
 from agents.voice import (
     StreamedAudioInput,
     SingleAgentVoiceWorkflow,
+    SingleAgentWorkflowCallbacks,
     VoicePipeline,
 )
 
@@ -33,7 +34,6 @@ agent = Agent(
     ],
 )
 
-CHUNK_LENGTH_S = 0.05  # 100ms
 SAMPLE_RATE = 24000
 FORMAT = np.int16
 CHANNELS = 1
@@ -42,15 +42,33 @@ CHANNELS = 1
 should_send_audio: asyncio.Event = asyncio.Event()
 audio_input = StreamedAudioInput()
 
+class show_transcription_callback(SingleAgentWorkflowCallbacks):
+    def on_run(
+        self,
+        workflow: SingleAgentVoiceWorkflow, transcription: str
+    ) -> None:
+        """顯示轉錄的文字"""
+        print(f"{transcription}")
+
 async def start_voice_pipeline() -> None:
-    player = sd.OutputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=FORMAT)
-    pipeline = VoicePipeline(workflow=SingleAgentVoiceWorkflow(agent))
+    player = sd.OutputStream(
+        samplerate=SAMPLE_RATE, 
+        channels=CHANNELS, 
+        dtype=FORMAT
+    )
+    pipeline = VoicePipeline(
+        workflow=SingleAgentVoiceWorkflow(
+            agent, 
+            callbacks=show_transcription_callback(), # 顯示轉錄的文字
+        )
+    )
 
     try:
         player.start()
         result = await pipeline.run(audio_input)
 
         async for event in result.stream():
+            print(event.type)
             if event.type == "voice_stream_event_audio":
                 player.write(event.data)
                 print(
